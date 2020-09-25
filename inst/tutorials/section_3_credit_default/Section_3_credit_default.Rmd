@@ -1,0 +1,644 @@
+---
+title: "Section 3: Data cleaning"
+output: learnr::tutorial
+runtime: shiny_prerendered
+---
+
+<!-- <head> -->
+<!-- <link rel="stylesheet" type="text/css" href="css/minty_bootstrap.css"> -->
+<!-- </head> -->
+
+
+```{r setup, include=FALSE}
+library(learnr)
+library(tidyverse)
+knitr::opts_chunk$set(echo = FALSE)
+
+credit_df <- read_csv('./data/UCI_Credit_Card_2_small.csv')
+
+credit_df_clean <- read_csv('./data/UCI_Credit_Card_2_small_clean.csv')
+
+credit_df <- credit_df %>% filter(education != 0)
+credit_df_clean <- credit_df_clean %>% filter(education != 0)
+
+```
+
+
+## Why is data cleaning so important?
+
+The vast majority of data, in its raw form, is not amenable to statistical analysis. There may be problems due to the collection procedure; for example, a sensor measuring moisture may return an error reading or worse again, skew results if the moisture exceeds some threshold beyond the capabilities of the sensor. Other issues can result from spreadsheets that beautifully format for excel but do not contain data that can easily be read into statistical software. A common issue can result from data that is hand transcribed. For example, inconsistent formatting of variable factors, `female`, `Female` and `F` all correspond female, but R interprets these as different categories in the variable. 
+
+Data cleaning corresponds to the bulk of the work done in any data-driven project. Dedicating time to it is useful as
+
+- Majority of statistical methods assume the input data is in the correct state for analysis.
+- Allow you to get to know your data.
+- Helps identify problems with the data collection process.
+- Cleaner data is better data, better results.
+
+
+<img src="./images/01_tidyverse_data_science.png" width="400" height="300" alt="The data science pipline.">
+
+### Steps in data cleaning
+
+1. Raw data.
+1. Technically correct data:
+    - In a state that R can read it in.
+    - All headers (variables) are accurate, correct names, types and labels.
+1. Consistent data:
+    - how to handle missing values.
+    - ready for statistical analysis. 
+  
+*Best practice* is to document each step of the analysis in an R script for reproducibility. Data cleaning boils down to inspecting the data (by eye or by creating summaries) and recognising any issues. 
+
+## Data cleaning with the `credit default` data set
+
+This dataset contains information on default payments, demographic factors, credit data, history of payment, and bill statements of credit card clients in Taiwan from July 2005 to September 2005. 
+
+There are `r ncol(credit_df)` variables:
+
+- `ID`: ID of each client
+- `LIMIT_BAL`: Given credit in NT dollars (includes individual and family/supplementary credit
+- `SEX`: Gender (1=male, 2=female)
+- `EDUCATION`: (1=graduate school, 2=university, 3=high school, 4=others, 5=unknown, 6=unknown)
+- `MARRIAGE`: Marital status (1=married, 2=single, 3=others)
+- `AGE`: Age in years
+- `BILL_AMT1`: Bill statement in September 2005 (NT dollar)
+- `BILL_AMT2`: Bill statement in August 2005 (NT dollar)
+- `BILL_AMT3`: Bill statement in July 2005 (NT dollar)
+- `PAY_AMT1`: Previous payment in September 2005 (NT dollar)
+- `PAY_AMT2`: Previous payment in August 2005 (NT dollar)
+- `PAY_AMT3`: Previous payment in July 2005 (NT dollar)
+- `default`: Default payment (1=yes, 0=no)
+
+## Examining the data
+
+### Peeking at the data
+
+The function `glimpse()` prints each variable name, its type and a few values. This can be used with the function `head()`, which returns the first six rows of a data set, to have a first look at the data frame that you are preparing for analysis. You should pay attention to variable names, variable type and the actual printed values. Use `glimpse()` and `head()` to examine the structure of `credit_df` dataset.
+
+Do you see anything that maybe inconsistency in the data?
+
+```{r peek-at-data, exercise=TRUE, exercise.lines = 5}
+credit_df
+
+
+```
+
+```{r peek-at-data-solution}
+credit_df %>% glimpse()
+credit_df %>% head()
+```
+
+### What is in the data? {data-progressive=TRUE}
+From the above, answer the following: 
+
+```{r quiz-1}
+quiz(
+  question("Q1: How many variables do we have?",
+    answer("1"),
+    answer("10"),
+    answer("12", correct = TRUE),
+    answer("30"),
+    allow_retry = TRUE
+  ),
+  question("Q2: Do all the column names make sense?",
+    answer("yes"),
+    answer("no", correct = TRUE),
+    allow_retry = TRUE
+  ),
+  question("Q3: Are there any unexpected variables types?",
+    answer("yes", correct = TRUE),
+    answer("no"),
+    allow_retry = TRUE
+  )
+)
+```
+
+### Exercise: `rename()` and `select()` functions
+
+The last column name is not correct --- change from `#error name missing` to `default`.
+
+```{r rename-vars, exercise=TRUE, exercise.lines = 5}
+
+
+```
+
+```{r rename-vars-solution}
+credit_df <- credit_df %>% rename(default = `#error name missing`)
+
+```
+
+Use the `select()` function to select the variables `id`, `limit_bal`, and `sex`.
+
+```{r select-vars-1, exercise=TRUE, exercise.lines = 5}
+
+
+```
+
+
+```{r select-vars-1-solution}
+credit_df %>% select(id, limit_bal, sex)
+```
+
+Use the `select()` function to everything except the variables `id`, `bill_amt1`, `bill_amt2`, and `bill_amt3`. 
+
+**Hint: you can prefix a variable that you want to drop with '-' in `select()`**
+
+```{r select-vars-2, exercise=TRUE, exercise.lines = 5}
+
+
+```
+
+
+```{r select-vars-2-solution}
+credit_df %>% select(-id, -bill_amt1, -bill_amt2, -bill_amt3)
+```
+
+Use the `select()` function to select everything except the variables that end with `1`, `2`, and `3`. 
+**Hint: try use the function `ends_with()` in `select()`**
+
+```{r select-vars-3, exercise=TRUE, exercise.lines = 5}
+
+
+```
+
+
+```{r select-vars-3-solution}
+credit_df %>% select(-ends_with('1'), -ends_with('2'), -ends_with('3'))
+```
+
+## Cleaning the credit data with `dplyr`
+
+From the above exercises, you may have noticed that `age`:
+
+- is the wrong class (`character` not `numeric`),
+- has negative values,
+- and contains some values with an `*` at the end.
+
+The last column name is clearly wrong.
+
+Also, `sex` is coded inconsistently.
+
+We will start with the variable `sex` and correctly code it. 
+
+### Cleaning `sex`
+
+Initially, we want to see how many categories they are in the variable `sex`. We can use the function `count()` to to count the number of occurrences of each unique value in the variable sex. We will also arrange the results from the largest to the smallest using `desc`. Additionally, We can also use ggplot to produce a bar plot.
+
+```{r sex-1, exercise=TRUE}
+# examine sex
+credit_df %>% count(sex) %>% arrange(desc(n))
+credit_df %>% ggplot(data = ., aes(x = sex, fill = sex)) + geom_bar()
+```
+
+We want to recode the various labels in `sex` to one consistent coding scheme. We will use the following steps to clean the data: 
+
+1. Initially, if we have any problems with trailing white spaces, we can use the `stringr` to remove these. 
+1. Next, we want to create a mapping from the old categories to the new categories. We will do this by creating a vector of the old categories and store it in `sex_from`. Using the count to create a table and then piping it in to `pull` variable to extract the variable as a vector. 
+1. Next, we create the mapping of each element of `sex_from` to the final categorization `sex_to`. It is not obvious that `1` is `male` and `2` is `female`, but this would be checked with the data provider in practice.
+1. To use this mapping for all values in the variable `sex` we can use a function in the `plyr` package called `mapvalues`, which does exactly what we want. 
+1. To make sure that the mapping was successful, we can use `count` and `ggplot` again to see if the coding scheme is now consistent.
+
+```{r sex-2, exercise=TRUE}
+
+# step 1: remove trailing white space
+credit_df <- credit_df %>% mutate(sex = stringr::str_trim(sex))
+
+# step 2: create mapping from vector
+sex_from <- credit_df %>% count(sex) %>% pull(sex)
+
+# step 3: create mapping to vector (this order is found by inspecting sex_from)
+sex_to <- c('male', 'female', 'female', 'female', 'male', 'male')
+
+# step 4: apply the mapping and save results
+credit_df <- credit_df %>% mutate(sex = plyr::mapvalues(sex, sex_from, sex_to))
+
+# step 5: recreate summarise to make sure it worked
+credit_df %>% count(sex)
+credit_df %>% ggplot(data = ., aes(x = sex, fill = sex)) + geom_bar()
+```
+
+### Cleaning `age`
+
+Applying similar steps from the previous section we will clean the variable `age`. When we inspected  `age`, we noted that the same values were negative, some values contained a `*` next to the numeric value, resulting in R reading in the variable as a character not a numeric. The presence of negative values and special values could be an error or could have a specific meaning in the context of the particular dataset. These should be noted and checked with whoever generated the data. Here, for example, the presence of a `*` indicated that the individual also had a guarantor. As such, before removing these `*` we should create new variable noting if a `*` is present. 
+
+We will proceded as follows: 
+
+1. Print a frequency table for all ages. When we visually inspect the values of age, we note that there are not only negative ages but some very large ages indeed. It was decided that negative ages were a transcription error and should be made positive and large ages should be removed. 
+1. Next, use the `stringr` package and the `str_end` function to search for ages that contain a `*`, this function returns a `TRUE` if it finds a `*` and `FALSE` otherwise. 
+1. We can now remove the `*` from the age variable using `str_remove`, again from the `stringr` package. 
+1. Next, we make all ages positive and remove large ages. 
+1. Finally, we recalculate summaries to verify that this variable has been cleaned.
+
+```{r age-vars-2, exercise=TRUE}
+# step 1: count each occurance of age
+credit_df %>% count(age) %>% print(n = Inf) # n = Inf forces all rows to be printed to screen
+
+credit_df <- credit_df %>% 
+  # step 2: found the * in the string and add a varaible. 
+  # NOTE: as * is a specical catacjers in we need to tell R to escape it and search for * 
+  # by adding \\ before it.
+  mutate(guarantor = stringr::str_ends(string = age, pattern = '\\*')) %>% 
+  # step 3: now we want to remove * from the string
+  mutate(age = stringr::str_remove(string = age, pattern = '\\*') %>% as.numeric()) 
+
+# step 4: 
+credit_df <- credit_df %>% 
+  mutate(age = abs(age)) %>%  # turn all negative value pos
+  filter(age < 1000) # remove very large age values
+
+# step 5: check that it worked
+credit_df %>% count(age) %>% print(n = Inf)
+
+```
+
+
+### Cleaning `NA` values
+
+We did not note any `NA` or `NaN` values when we had a peek at the data earlier, but its good practice to check for them anyway. Note: `is.na()` will also return `TRUE` for a `NaN` value.
+
+We proceed as follows to find and remove `NA` values:
+
+1. Initially, we want to get a handle on which variables contain `NA` values. There are several ways to do this, but we will use `summarise_all()` which will map a function to all the variables in the data set. We want to count all the `NA` values in each variable. We can use `~sum(is.na(.))` to accomplish this. The `~` symbol is used to make sure the argument is passed as a function and the `.` is a placeholder for the data frame that we are piping. From the summary table generated, we note that the variables `bill_amt1`, `bill_amt2` and `bill_amt3` contain all the `NA` values. 
+1. If we wanted to see exactly which rows have `NA` in case there is anything of note about these individuals, we could use the `filter` function to extract the rows of interest. 
+1. Once we are satisfied that we do not need to retain these rows, we can use the `complete.case` function to select rows that do not have any missing values and the `filter` function again return the cleaned data frame.
+1. As always, we recalculate the summaries to make sure it worked as intended.
+
+```{r na-1, exercise=TRUE}
+
+# step 1: find the number of NA's per variable
+credit_df %>%
+  select(everything()) %>%  # replace to your needs
+  summarise_all(~sum(is.na(.)))
+
+# step 2: examine the rows that have NA to see if there is anything of note.
+credit_df %>% filter( is.na(bill_amt1) | is.na(bill_amt2) | is.na(bill_amt3))
+
+# step 3: remove the rows with NA values
+credit_df <- credit_df %>% filter(complete.cases(.))
+
+# step 4: double check that it worked
+credit_df %>%
+  select(everything()) %>%  # replace to your needs
+  summarise_all(~sum(is.na(.)))
+
+```
+
+### Cleaning: variable type
+
+Here, we noted that some of the variables were of the wrong class. We will just recast them to the desired class. 
+
+```{r var-type, exercise = TRUE}
+credit_df <- credit_df %>% rename(default = `#error name missing`)
+
+# make sure all cols are the correct type
+credit_df <- credit_df %>% 
+  mutate(default = as_factor(default),
+         sex = as_factor(sex), 
+         # normally, this would ordal but due to the 'unkown'
+         # we will treat it as a factor. 
+         education = as_factor(sex), 
+         marriage = as_factor(sex))
+
+```
+
+## Data cleaning best practice
+
+By the end of the cleaning stage, you should have a complete step by step R script that provides a road map for how you went about creating a data set that is ready for statistical analysis. Below is an example of an R script that could be used to clean the credit default data set automatically. With the credit default data cleaned, in the next section, we perform an _Exploratory Data Analysis_ (EDA). Getting a further 'feel' for the data by examining numerical and graphical summaries. This allows us to find any further inconsistencies in the data that might need further cleaning and will also inform how we are going to model the data. 
+
+```{r, echo=TRUE, eval = FALSE}
+
+# load packages and varaibles ---------------------------------------------
+
+library(tidyverse)
+
+# where are we reading in and out from?
+input_files <- './data/UCI_Credit_Card_2.csv'
+output_file <- './data/UCI_Credit_Card_2_clean.csv'
+
+# read in data
+credit_df <- read_csv(input_files, trim_ws = FALSE)
+
+# peek at the data
+credit_df %>% glimpse()
+
+# fix wrong title
+credit_df <- credit_df %>% rename(default = `#error name missing`)
+
+credit_df$default <- factor(
+  credit_df$default, 
+  levels = c(0,1), 
+  labels = c('no default', 'default')
+)
+
+credit_df$education <- factor(
+  credit_df$education, 
+  levels = 1:6, 
+  labels = c('graduate school','university','high school', 
+             'other', 'unknown', 'unknown')
+  )
+# find and fix problems with varaibles sex --------------------------------
+
+# examine sex for consistancy
+credit_df %>% count(sex)
+credit_df %>% count(sex) %>% arrange(n)
+credit_df %>% count(sex) %>% arrange(desc(n))
+
+# what does the distribution look like?
+credit_df %>% ggplot(data = ., aes(x = sex, fill = sex)) +
+  geom_bar()
+
+# create a mapping to a consistance label
+credit_df <- credit_df %>% mutate(sex = stringr::str_trim(sex))
+credit_df %>% count(sex)
+sex_from <- credit_df %>% count(sex) %>% pull(sex)
+sex_to <- c('male', 'female', 'female', 'female', 'male', 'male')
+credit_df <- credit_df %>% mutate(sex = plyr::mapvalues(sex, sex_from, sex_to))
+
+# now turn sex into a factor
+credit_df$sex <- as.factor(credit_df$sex)
+
+# what does the distribution look like?
+credit_df %>% ggplot(data = ., aes(x = sex, fill = sex)) +
+  geom_bar()
+
+# find and fix problems with age ------------------------------------------
+# fix problems with age
+credit_df %>% count(age)
+credit_df %>% count(age) %>% print(n = Inf)
+
+credit_df <- credit_df %>% 
+  # found the * in the string and add a varaible
+  mutate(guarantor = stringr::str_ends(string = age, pattern = '\\*')) %>% 
+  # now we want to remove * from the string
+  mutate(age = stringr::str_remove(string = age, pattern = '\\*') %>% as.numeric()) 
+
+credit_df <- credit_df %>% 
+  mutate(age = abs(age)) %>%  # turn all negative value pos
+  filter(age < 1000)
+
+credit_df %>% count(age) %>% print(n = Inf)
+
+# find what variables have NA values --------------------------------------
+
+# now deal with the NA values
+credit_df %>%
+  select(everything()) %>%  # replace to your needs
+  summarise_all(~sum(is.na(.)))
+
+credit_df %>%
+  select(everything()) %>%  # replace to your needs
+  summarise_all(~sum(is.nan(.)))
+
+credit_df %>% 
+  filter( is.na(bill_amt1) | is.na(bill_amt2) | is.na(bill_amt3))
+
+credit_df %>% 
+  filter( is.nan(bill_amt1) | is.nan(bill_amt2) | is.nan(bill_amt3))
+
+credit_df <- credit_df %>% 
+  filter(complete.cases(.))
+
+credit_df %>%
+  select(everything()) %>%  # replace to your needs
+  summarise_all(~sum(is.na(.)))
+
+
+# make sure all variables are the correct type ----------------------------
+
+# make sure all cols are the correct type
+credit_df <- credit_df %>% 
+  mutate(default = as_factor(default),
+         sex = as_factor(sex), 
+         education = as_factor(education))
+
+
+# add some useful summaries -----------------------------------------------
+
+
+credit_df <- credit_df %>% 
+  mutate(total_bill_amt = bill_amt1 + bill_amt2 + bill_amt3, 
+         total_pay_amt = pay_amt1 + pay_amt2 + pay_amt3, 
+         total_diff = total_bill_amt - total_pay_amt
+  )
+
+
+# save the output file to the correct destination -------------------------
+
+
+write_csv(x = credit_df, path = output_file)
+```
+
+
+## Numerical summaries
+
+Using the now cleaned credit default data set (called `credit_df_clean`) answer the following:
+
+```{r}
+credit_df_clean %>% head
+```
+
+Find the number of rows and column in the data set. 
+
+Hint: Try googling "How to find the number of rows in R", the required function will not be a surprise.  
+
+```{r num-summ, exercise = TRUE}
+
+
+```
+
+```{r num-summ-solution}
+credit_df_clean %>% nrow()
+credit_df_clean %>% ncol()
+```
+
+### Find frequencies in a category
+
+Use the `count()` function to find the number of people who did and did not default. 
+
+Add a variable called `frac` which is the fraction of data in each group (you can use `mutate()` to do this).
+
+```{r num-summ-1, exercise = TRUE}
+
+```
+
+```{r num-summ-1-solution}
+credit_df_clean %>% count(default) %>% mutate(frac = n/sum(n))
+```
+
+Again, using the `count()` function to find the number of people who did and did not default split by both sex and education. 
+
+Add `frac`: the fraction in each group.
+
+Finally, arrange this data frame by `frac` in descending order.
+
+```{r num-summ-2, exercise = TRUE}
+
+
+```
+
+```{r num-summ-2-solution}
+count_default_df <- credit_df_clean %>% 
+  count(default, sex, education) %>% 
+  mutate(frac = n/sum(n))
+
+count_default_df %>% 
+  arrange(desc(frac))
+```
+
+### Using `group_by()` and `summarise()` to genearte summary tables
+
+Create a summary table broken down by `sex` and `education` containing the 
+
+- the fraction of defaults,
+- the mean and standard deviation of age,
+- the mean and standard deviation of total difference.
+
+Arrange these by the highest fraction of defaults.
+
+```{r num-summ-3, exercise = TRUE}
+
+
+
+```
+
+```{r num-summ-3-solution}
+
+credit_df_clean %>% 
+  group_by(sex, education) %>% 
+  summarise(
+    frac_default = sum(default)/length(default),
+    
+    mean_age = mean(age),  
+    mean_diff = mean(total_diff), 
+            
+    sd_age = sd(age), 
+    sd_diff = sd(total_diff)
+    ) %>% 
+  arrange(desc(frac_default))
+
+```
+
+## Graphical summaries
+
+Here we are going to generate some graphical summaries from the cleaned credit default data. We will be using `ggplot()` and a variety of `geom_`'s to create different plots. [Here](https://ggplot2.tidyverse.org/reference/) is a handy reference `ggplot` commands.
+
+Using the cleaned credit default data set to generate the following graphical summaries:
+
+### Creating bar plots
+
+Create a barplot of the number of defaults in the dataset. Make sure to use `fill` to add a bit of colour. Use the `xlab()` and `ylab()` to create more aesthetically pleasing axis labels.
+
+In this case, you will be using `geom_bar()` to create a bar plot.
+
+```{r grap-summ-1, exercise = TRUE}
+
+```
+
+```{r grap-summ-1-solution}
+ggplot(data = credit_df, aes(x = as.factor(default), fill = as.factor(default))) +
+  geom_bar() + 
+  xlab('Defualt') + 
+  ylab('Number of people')
+```
+
+### Create a histogram
+
+Create a histogram of the `limit_bal` using `geom_histogram()` and add a fill colour.   
+
+```{r grap-summ-2, exercise = TRUE}
+
+```
+
+```{r grap-summ-2-solution}
+ggplot(data = credit_df_clean) +
+  geom_histogram(aes(x = limit_bal), fill = 'steelblue', color = 'black') + 
+  xlab('Balance Limit') + 
+  ylab('Number of people')
+```
+
+### Comment on the distribution
+
+Given the above distribution which of the following is correct:
+
+```{r quiz-graph-summ}
+quiz(
+  question("Q1: Is the distrubution:",
+    answer("Symmetric"),
+    answer("Negatively skewed"),
+    answer("Positively skewed", correct = TRUE),
+    allow_retry = TRUE
+  ),
+  question("Q2: The means that:",
+    answer("The median is less than the mean", correct = TRUE),
+    answer("The median is more than the mean"),
+    allow_retry = TRUE
+  )
+)
+```
+
+### Creating box plots
+
+Create a box plot of `limit_bal` where:
+
+- `education` level is along the `x` axis,
+- and `education` level is also split by `sex`.
+
+If you are having trouble, stack overflow indispensable when trying to find a solution to plotting problems (and basically every other type of problem!). You can search [here](https://stats.stackexchange.com/questions/11406/boxplot-with-respect-to-two-factors-using-ggplot2-in-r) to find a suitable solution.
+
+```{r grap-summ-3, exercise = TRUE}
+
+```
+
+```{r grap-summ-3-solution}
+ggplot(data = credit_df_clean, aes(y = limit_bal, x = as.factor(education), fill = sex)) +
+  geom_boxplot() + 
+  xlab('Education Level') + 
+  ylab('Balanance Limit')
+```
+
+### Generating summary tables and plotting
+
+Create a summary table that computes the mean `limit_bal` grouped by `age` and `default`.
+
+generate a line graph of the results of the above table with
+
+- the x-axis is `age`, 
+- the y-axis is `mean_limit_bal` and, 
+- two lines for those who defaulted and those who did not.
+
+```{r gra-sum-0, exercise = TRUE}
+
+```
+
+```{r gra-sum-0-solution}
+age_def_summ <- credit_df_clean %>% 
+  group_by(age, default) %>% 
+  summarise(mean_lim = mean(limit_bal))
+
+ggplot(age_def_summ, aes(x = age, y = mean_lim, colour = as.factor(default))) + 
+  geom_line() + 
+  geom_point() 
+
+#### OR you could do it all in one
+credit_df_clean %>% 
+  group_by(age, default) %>% 
+  summarise(mean_lim = mean(limit_bal)) %>% 
+  ggplot(aes(x = age, y = mean_lim, colour = as.factor(default))) + 
+  geom_line() + 
+  geom_point() 
+```
+
+Why does the trend become less consistent for the over 38's?
+
+
+## Communicating your results
+
+There are many ways to communicate your result to other members of your team, managers, and clients.
+
+Often, first is to create a report using `R markdown`. `R markdown` allows you to create reports with embedded R code. The basis for this would be code used to cleaned the data, generated summary statistics and graphics. This allows you to generate reproducible reports that can be easily changed for use with other datasets. This is especially powerful when making standardised reports with data that always comes in the same form (think your quality reports).
+
+Additionally, you might want to create an interactive dashboard from your data so that you can, at a glance, glean some information from your data. This can be accomplished via `flexdashboard` and other packages.
+
+`flexdashboard` is a subset of `Rshiny` which allows for the creation of a dynamically generated application for interacting with your data. Very useful for communication, or building a front end to quickly run data computation in R at the push of a button. `RShiny` applications are beyond the scope of this course, but you can find an example of successfully deployed projects [here](https://rmarkdown.rstudio.com/flexdashboard/examples.html).
+
