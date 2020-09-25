@@ -1,9 +1,10 @@
 Package: IntroductionToR
 Type: Package
-Title: What the Package Does (Title Case)
+Title: A intro
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
+Author: David JP O'Sullivan
+Maintainer: David JP O'Sullivan <david.osullivan@ul.ie>
+Imports: tidyverse, learnr
 Description: More about what it does (maybe more than one line)
     Use four spaces when indenting paragraphs within the Description.
 License: What license is it under?
