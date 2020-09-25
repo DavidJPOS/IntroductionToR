@@ -289,7 +289,7 @@ credit_df %>%
 Here, we noted that some of the variables were of the wrong class. We will just recast them to the desired class. 
 
 ```{r var-type, exercise = TRUE}
-credit_df <- credit_df %>% rename(default = `#error name missing`)
+# credit_df <- credit_df %>% rename(default = `#error name missing`)
 
 # make sure all cols are the correct type
 credit_df <- credit_df %>% 
@@ -323,7 +323,7 @@ credit_df <- read_csv(input_files, trim_ws = FALSE)
 credit_df %>% glimpse()
 
 # fix wrong title
-credit_df <- credit_df %>% rename(default = `#error name missing`)
+# credit_df <- credit_df %>% rename(default = `#error name missing`)
 
 credit_df$default <- factor(
   credit_df$default, 
