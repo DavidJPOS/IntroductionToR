@@ -3,3 +3,6 @@ exportPattern("^[[:alpha:]]+")
 
 import(tidyverse)
 import(learnr)
+import(rsconnect)
+import(nycflights13)
+import(plyr)

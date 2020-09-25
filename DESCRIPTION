@@ -1,12 +1,11 @@
 Package: IntroductionToR
 Type: Package
-Title: A intro
+Title: Introduction to R
 Version: 0.1.0
 Author: David JP O'Sullivan
 Maintainer: David JP O'Sullivan <david.osullivan@ul.ie>
-Imports: tidyverse, learnr
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Imports: tidyverse, learnr, rsconnect, nycflights13, plyr
+Description: Contains several learnR tutorials covering base R, the tidyverse and some data cleaning
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
